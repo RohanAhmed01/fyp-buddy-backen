@@ -16,13 +16,23 @@ client = OpenAI(
 
 app = FastAPI(title="FYP Buddy API", version="1.1")
 
+# CORS ko sab ke liye open kar diya hai taake production mein masla na ho
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Root route taake browser ya Vercel par kholnay se 404 na aaye
+@app.get("/")
+def read_root():
+    return {
+        "status": "success",
+        "message": "FYP Buddy API is live and running smoothly!"
+    }
 
 
 class DebugResponse(BaseModel):
