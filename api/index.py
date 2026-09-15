@@ -49,12 +49,12 @@ def extract_python_code(text):
 
 
 def run_code_safely(code_string):
-    with open("temp_exec.py", "w", encoding="utf-8") as f:
+    with open("/tmp/temp_exec.py", "w", encoding="utf-8") as f:
         f.write(code_string)
 
     try:
         result = subprocess.run(
-            ["python", "temp_exec.py"],
+            ["python", "/tmp/temp_exec.py"],
             capture_output=True,
             text=True,
             timeout=5
@@ -63,8 +63,8 @@ def run_code_safely(code_string):
     except subprocess.TimeoutExpired:
         return "Execution Error: Timeout (Infinite loop detected)"
     finally:
-        if os.path.exists("temp_exec.py"):
-            os.remove("temp_exec.py")
+        if os.path.exists("/tmp/temp_exec.py"):
+            os.remove("/tmp/temp_exec.py")
 
 
 @app.post("/api/v1/debug", response_model=DebugResponse)
