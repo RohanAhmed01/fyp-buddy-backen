@@ -9,15 +9,13 @@ from pydantic import BaseModel
 from openai import OpenAI
 import uvicorn
 
-# OpenRouter API Key yahan daalein
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-app = FastAPI(title="FYP Buddy API", version="1.1")
+app = FastAPI(title="FYP Buddy API", version="2.0")
 
-# CORS ko sab ke liye open kar diya hai taake production mein masla na ho
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,7 +24,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Root route ab JSON ke bajaye khoobsurat UI (Website) dikhayega
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     html_content = """
@@ -35,39 +32,118 @@ def read_root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>FYP Buddy - Autonomous Debugger</title>
+        <title>FYP Buddy | Pro Debugger</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+        
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            sans: ['Inter', 'sans-serif'],
+                            mono: ['JetBrains Mono', 'monospace'],
+                        }
+                    }
+                }
+            }
+        </script>
+        <style>
+            body { background-color: #09090b; }
+            ::-webkit-scrollbar { width: 8px; height: 8px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+            ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+            .glass-panel { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+            .glow-btn { box-shadow: 0 0 20px -5px rgba(34, 197, 94, 0.4); }
+            .glow-btn:hover { box-shadow: 0 0 25px -2px rgba(34, 197, 94, 0.6); }
+        </style>
     </head>
-    <body class="bg-gray-900 text-white font-sans min-h-screen p-8">
-        <div class="max-w-4xl mx-auto">
-            <h1 class="text-4xl font-bold text-green-400 mb-2">FYP Buddy</h1>
-            <p class="text-gray-400 mb-8">Autonomous Python Self-Healing Debugger</p>
-
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-300 mb-2">Paste Buggy Python Code:</label>
-                <textarea id="sourceCode" rows="6" class="w-full bg-gray-800 text-gray-100 rounded-lg p-4 focus:ring-2 focus:ring-green-400 focus:outline-none border border-gray-700 font-mono text-sm" placeholder="print(x)"></textarea>
+    <body class="text-gray-200 min-h-screen flex flex-col items-center p-4 sm:p-8">
+        
+        <!-- Navbar / Header -->
+        <div class="w-full max-w-7xl mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500 tracking-tight flex items-center gap-2">
+                    <svg class="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    FYP Buddy
+                </h1>
+                <p class="text-zinc-400 text-sm mt-1 font-medium">Autonomous Agentic Code Repair</p>
             </div>
-            
-            <button id="runBtn" onclick="runDebugger()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg transition-colors">
-                🚀 Run Autonomous Debugger
-            </button>
-            
-            <p id="loading" class="text-yellow-400 mt-4 hidden animate-pulse">Debugging in progress... Please wait.</p>
+            <div class="flex gap-2">
+                <span class="px-3 py-1 bg-zinc-800/80 border border-zinc-700 rounded-md text-xs text-emerald-400 font-mono flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Llama 3 Active</span>
+            </div>
+        </div>
 
-            <div id="outputSection" class="mt-10 hidden space-y-6">
-                <div>
-                    <h2 class="text-xl font-semibold text-green-400 mb-2">Fixed Code:</h2>
-                    <div class="bg-gray-800 rounded-lg border border-gray-700">
-                        <pre><code id="fixedCodeDisplay" class="language-python text-sm"></code></pre>
+        <!-- Main Layout Grid -->
+        <div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Left Column: Input Panel -->
+            <div class="glass-panel rounded-2xl flex flex-col shadow-2xl h-[600px] overflow-hidden relative">
+                <div class="bg-zinc-900/80 px-5 py-3 border-b border-zinc-800 flex justify-between items-center">
+                    <span class="text-sm font-semibold text-zinc-300">Editor</span>
+                    <span class="text-xs text-zinc-500 font-mono">main.py</span>
+                </div>
+                <textarea id="sourceCode" class="flex-1 w-full bg-transparent text-zinc-100 p-5 focus:outline-none font-mono text-sm resize-none leading-loose" placeholder="# Paste your buggy Python code here...&#10;&#10;def calculate_total():&#10;    total = 0&#10;    print(totl) # Bug here"></textarea>
+                
+                <div class="p-4 border-t border-zinc-800 bg-zinc-900/50 flex justify-end">
+                    <button id="runBtn" onclick="runDebugger()" class="glow-btn bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold py-2.5 px-6 rounded-lg transition-all flex items-center gap-2 text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Run Debugger
+                    </button>
+                </div>
+
+                <!-- Loading Overlay -->
+                <div id="loadingOverlay" class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm hidden flex-col justify-center items-center z-10">
+                    <svg class="animate-spin h-10 w-10 text-emerald-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="text-emerald-400 font-mono text-sm animate-pulse tracking-wide">AI Agent is analyzing...</p>
+                </div>
+            </div>
+
+            <!-- Right Column: Output Panel -->
+            <div class="flex flex-col gap-6 h-[600px]">
+                
+                <!-- Fixed Code Panel -->
+                <div class="glass-panel rounded-2xl shadow-2xl flex flex-col flex-1 overflow-hidden transition-all">
+                    <div class="bg-zinc-900/80 px-5 py-3 border-b border-zinc-800 flex justify-between items-center">
+                        <span class="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            Fixed Code
+                        </span>
+                        <div class="flex items-center gap-3">
+                            <span id="attemptBadge" class="hidden px-2 py-0.5 bg-zinc-800 rounded text-xs text-zinc-400 font-mono"></span>
+                            <button onclick="copyCode()" class="text-zinc-400 hover:text-white transition-colors" title="Copy Code">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-auto bg-[#1e1e1e] p-4 relative">
+                        <!-- Placeholder State -->
+                        <div id="outputPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-600">
+                            <svg class="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                            <p class="text-sm">Awaiting execution...</p>
+                        </div>
+                        <pre><code id="fixedCodeDisplay" class="language-python text-sm font-mono leading-loose"></code></pre>
                     </div>
                 </div>
-                <div>
-                    <h2 class="text-xl font-semibold text-blue-400 mb-2">Execution Terminal:</h2>
-                    <div class="bg-black p-4 rounded-lg border border-gray-700">
-                        <pre class="text-yellow-400 font-mono text-sm whitespace-pre-wrap" id="executionOutput"></pre>
+
+                <!-- Terminal Panel -->
+                <div class="glass-panel rounded-2xl shadow-2xl h-[30%] min-h-[180px] flex flex-col overflow-hidden">
+                    <div class="bg-zinc-900/80 px-5 py-2 border-b border-zinc-800 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M4 18h16a2 2 0 002-2V6a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                        <span class="text-xs font-semibold text-zinc-300 uppercase tracking-widest">Terminal Output</span>
+                    </div>
+                    <div class="p-4 bg-black flex-1 overflow-auto">
+                        <pre class="text-zinc-300 font-mono text-sm whitespace-pre-wrap leading-relaxed" id="executionOutput">></pre>
                     </div>
                 </div>
+
             </div>
         </div>
 
@@ -75,6 +151,8 @@ def read_root():
         <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
         
         <script>
+            let rawFixedCode = "";
+
             async function runDebugger() {
                 const code = document.getElementById('sourceCode').value;
                 if (!code) {
@@ -82,9 +160,13 @@ def read_root():
                     return;
                 }
 
-                document.getElementById('loading').classList.remove('hidden');
-                document.getElementById('outputSection').classList.add('hidden');
+                document.getElementById('loadingOverlay').classList.remove('hidden');
+                document.getElementById('loadingOverlay').classList.add('flex');
                 document.getElementById('runBtn').disabled = true;
+                
+                document.getElementById('outputPlaceholder').style.display = 'none';
+                document.getElementById('fixedCodeDisplay').textContent = "";
+                document.getElementById('executionOutput').textContent = "> Running...";
 
                 const formData = new FormData();
                 formData.append('source_code', code);
@@ -98,20 +180,34 @@ def read_root():
                     const data = await response.json();
                     
                     if(response.ok) {
-                        document.getElementById('fixedCodeDisplay').textContent = data.fixed_code;
-                        document.getElementById('executionOutput').textContent = data.execution_output;
+                        rawFixedCode = data.fixed_code;
+                        document.getElementById('fixedCodeDisplay').textContent = rawFixedCode;
+                        
+                        let exOut = data.execution_output;
+                        if(exOut.trim() === "") exOut = "Executed successfully with no terminal output.";
+                        document.getElementById('executionOutput').innerHTML = `<span class="text-cyan-400">~</span> ${exOut}`;
+                        
+                        document.getElementById('attemptBadge').textContent = `${data.attempts} Attempt(s)`;
+                        document.getElementById('attemptBadge').classList.remove('hidden');
                         
                         Prism.highlightElement(document.getElementById('fixedCodeDisplay'));
-                        document.getElementById('outputSection').classList.remove('hidden');
                     } else {
-                        alert("Error: " + data.detail);
+                        document.getElementById('executionOutput').innerHTML = `<span class="text-red-500">Error: ${data.detail}</span>`;
                     }
                 } catch (error) {
-                    alert("Connection Error.");
+                    document.getElementById('executionOutput').innerHTML = `<span class="text-red-500">Connection Error. Please try again.</span>`;
                 } finally {
-                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                    document.getElementById('loadingOverlay').classList.remove('flex');
                     document.getElementById('runBtn').disabled = false;
                 }
+            }
+
+            function copyCode() {
+                if(!rawFixedCode) return;
+                navigator.clipboard.writeText(rawFixedCode).then(() => {
+                    alert("Code copied to clipboard! 📋");
+                });
             }
         </script>
     </body>
@@ -181,7 +277,6 @@ async def run_debugger(
                 f"Previous Error Context (if any):\n{current_error}"
             )
 
-            # Using OpenRouter's free Llama 3 model
             response = client.chat.completions.create(
                 model="openrouter/free",
                 messages=[
@@ -213,7 +308,6 @@ async def run_debugger(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
