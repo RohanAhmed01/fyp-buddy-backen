@@ -3,6 +3,7 @@ import re
 import subprocess
 from typing import Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
@@ -25,15 +26,98 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# Root route taake browser ya Vercel par kholnay se 404 na aaye
-@app.get("/")
+# Root route ab JSON ke bajaye khoobsurat UI (Website) dikhayega
+@app.get("/", response_class=HTMLResponse)
 def read_root():
-    return {
-        "status": "success",
-        "message": "FYP Buddy API is live and running smoothly!"
-    }
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FYP Buddy - Autonomous Debugger</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    </head>
+    <body class="bg-gray-900 text-white font-sans min-h-screen p-8">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-4xl font-bold text-green-400 mb-2">FYP Buddy</h1>
+            <p class="text-gray-400 mb-8">Autonomous Python Self-Healing Debugger</p>
 
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-300 mb-2">Paste Buggy Python Code:</label>
+                <textarea id="sourceCode" rows="6" class="w-full bg-gray-800 text-gray-100 rounded-lg p-4 focus:ring-2 focus:ring-green-400 focus:outline-none border border-gray-700 font-mono text-sm" placeholder="print(x)"></textarea>
+            </div>
+            
+            <button id="runBtn" onclick="runDebugger()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                🚀 Run Autonomous Debugger
+            </button>
+            
+            <p id="loading" class="text-yellow-400 mt-4 hidden animate-pulse">Debugging in progress... Please wait.</p>
+
+            <div id="outputSection" class="mt-10 hidden space-y-6">
+                <div>
+                    <h2 class="text-xl font-semibold text-green-400 mb-2">Fixed Code:</h2>
+                    <div class="bg-gray-800 rounded-lg border border-gray-700">
+                        <pre><code id="fixedCodeDisplay" class="language-python text-sm"></code></pre>
+                    </div>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold text-blue-400 mb-2">Execution Terminal:</h2>
+                    <div class="bg-black p-4 rounded-lg border border-gray-700">
+                        <pre class="text-yellow-400 font-mono text-sm whitespace-pre-wrap" id="executionOutput"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+        
+        <script>
+            async function runDebugger() {
+                const code = document.getElementById('sourceCode').value;
+                if (!code) {
+                    alert("Please enter some code to debug!");
+                    return;
+                }
+
+                document.getElementById('loading').classList.remove('hidden');
+                document.getElementById('outputSection').classList.add('hidden');
+                document.getElementById('runBtn').disabled = true;
+
+                const formData = new FormData();
+                formData.append('source_code', code);
+
+                try {
+                    const response = await fetch('/api/v1/debug', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if(response.ok) {
+                        document.getElementById('fixedCodeDisplay').textContent = data.fixed_code;
+                        document.getElementById('executionOutput').textContent = data.execution_output;
+                        
+                        Prism.highlightElement(document.getElementById('fixedCodeDisplay'));
+                        document.getElementById('outputSection').classList.remove('hidden');
+                    } else {
+                        alert("Error: " + data.detail);
+                    }
+                } catch (error) {
+                    alert("Connection Error.");
+                } finally {
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('runBtn').disabled = false;
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 class DebugResponse(BaseModel):
     fixed_code: str
@@ -42,11 +126,9 @@ class DebugResponse(BaseModel):
     status: str
     attempts: int
 
-
 def extract_python_code(text):
     match = re.search(r'```python\n(.*?)\n```', text, re.DOTALL)
     return match.group(1).strip() if match else text
-
 
 def run_code_safely(code_string):
     with open("/tmp/temp_exec.py", "w", encoding="utf-8") as f:
@@ -65,7 +147,6 @@ def run_code_safely(code_string):
     finally:
         if os.path.exists("/tmp/temp_exec.py"):
             os.remove("/tmp/temp_exec.py")
-
 
 @app.post("/api/v1/debug", response_model=DebugResponse)
 async def run_debugger(
